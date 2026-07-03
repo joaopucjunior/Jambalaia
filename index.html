@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Jambalaia</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23B4842B'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='%23FBF7EC' font-family='Georgia,serif' font-style='italic'%3EJ%3C/text%3E%3C/svg%3E" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Jambalaia" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #EFE9DC; }
+  #root { min-height: 100vh; }
+  ::-webkit-scrollbar { display: none; }
+</style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  // Local storage polyfill matching the artifact storage API shape used below.
+  window.storage = {
+    get: async (key) => {
+      const v = localStorage.getItem(key);
+      return v !== null ? { key, value: v } : null;
+    },
+    set: async (key, value) => {
+      localStorage.setItem(key, value);
+      return { key, value };
+    },
+  };
+</script>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+const MONTH_NAMES = [
+  "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+  "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"
+];
+
+const SEED = [
+  { name: "Janeiro", items: [
+      { label: "Luz", value: 353.91 },
+      { label: "Condomínio", value: 117.33 },
+      { label: "Aluguel", value: 372 },
+      { label: "Net", value: 82.82 },
+    ], extras: [] },
+  { name: "Fevereiro", items: [
+      { label: "Luz", value: 320.24 },
+      { label: "Condomínio", value: 112.69 },
+      { label: "Aluguel", value: 370 },
+      { label: "Manutenção garagem", value: 55 },
+      { label: "Net", value: 82.34 },
+    ], extras: [ { label: "Havaianas", value: -55 } ] },
+  { name: "Março", items: [
+      { label: "Luz", value: 326.88 },
+      { label: "Condomínio", value: 116.71 },
+      { label: "Aluguel", value: 370 },
+      { label: "Net", value: 82.82 },
+    ], extras: [] },
+  { name: "Abril", items: [
+      { label: "Luz", value: 375.92 },
+      { label: "Condomínio", value: 115 },
+      { label: "Aluguel", value: 370 },
+      { label: "Manutenção do esgoto", value: 47 },
+      { label: "Net", value: 82.82 },
+    ], extras: [ { label: "Insider", value: 86.75 } ] },
+  { name: "Maio", items: [
+      { label: "Luz", value: 383.8 },
+      { label: "Condomínio", value: 121.26 },
+      { label: "Aluguel", value: 370 },
+      { label: "Net", value: 82.82 },
+    ], extras: [ { label: "Conserto do chuveiro", value: -25 } ] },
+  { name: "Junho", items: [
+      { label: "Luz", value: 0 },
+      { label: "Condomínio", value: 132.28 },
+      { label: "Aluguel", value: 370 },
+      { label: "Faxineira", value: 200 },
+      { label: "Net", value: 82.82 },
+    ], extras: [] },
+];
+
+const INK = "#2B2118";
+const INK_SOFT = "#6B5F4F";
+const PAPER = "#FBF7EC";
+const APP_BG = "#EFE9DC";
+const GOLD = "#B4842B";
+const JADE = "#2F8F76";
+const WINE = "#A23B4A";
+const LINE = "#D9CFB6";
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+function seedMonths(year) {
+  return SEED.map((m) => ({
+    id: uid(),
+    name: m.name,
+    year,
+    items: m.items.map((it) => ({ id: uid(), ...it })),
+    extras: m.extras.map((ex) => ({ id: uid(), ...ex })),
+  }));
+}
+
+const BRL = (n) =>
+  (isNaN(n) ? 0 : n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+function sum(list) {
+  return list.reduce((a, b) => a + (parseFloat(b.value) || 0), 0);
+}
+
+function computeMonth(m) {
+  const total = sum(m.items);
+  const half = total / 2;
+  const extrasTotal = sum(m.extras);
+  const final = half + extrasTotal;
+  return { total, half, extrasTotal, final };
+}
+
+function buildReceiptText(m) {
+  const { total, half, final } = computeMonth(m);
+  const lines = [];
+  lines.push(`CONTA DA CASA — ${m.name.toUpperCase()} ${m.year}`);
+  lines.push("");
+  m.items.forEach((it) => lines.push(`${it.label}: ${BRL(parseFloat(it.value) || 0)}`));
+  lines.push("—");
+  lines.push(`Total: ${BRL(total)}`);
+  lines.push(`Metade (÷2): ${BRL(half)}`);
+  if (m.extras.length) {
+    lines.push("");
+    m.extras.forEach((ex) => {
+      const v = parseFloat(ex.value) || 0;
+      lines.push(`${ex.label}: ${v >= 0 ? "+" : ""}${BRL(v)}`);
+    });
+  }
+  lines.push("—");
+  lines.push(`SUA PARTE: ${BRL(final)}`);
+  return lines.join("\n");
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+async function drawReceiptCanvas(m) {
+  try {
+    await Promise.all([
+      document.fonts.load('600 34px Fraunces'),
+      document.fonts.load('italic 600 34px Fraunces'),
+      document.fonts.load('600 20px Fraunces'),
+      document.fonts.load('500 14px "IBM Plex Mono"'),
+      document.fonts.load('600 12px Inter'),
+      document.fonts.load('500 15px Inter'),
+    ]);
+    await document.fonts.ready;
+  } catch (e) {}
+
+  const { total, half, final } = computeMonth(m);
+  const rowH = 34;
+  const extrasHeight = m.extras.length ? 34 + m.extras.length * rowH + 10 : 0;
+  const W = 640;
+  const H = 250 + m.items.length * rowH + extrasHeight + 150;
+
+  const canvas = document.createElement("canvas");
+  const scale = 2;
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = APP_BG;
+  ctx.fillRect(0, 0, W, H);
+
+  const pad = 26;
+  const cardY = pad + 14;
+  roundRect(ctx, pad, cardY, W - pad * 2, H - pad * 2 - 14, 3);
+  ctx.fillStyle = PAPER;
+  ctx.fill();
+
+  ctx.fillStyle = APP_BG;
+  for (let x = pad + 10; x < W - pad; x += 20) {
+    ctx.beginPath();
+    ctx.arc(x, cardY, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  let y = cardY + 44;
+  const left = pad + 30;
+  const right = W - pad - 30;
+
+  ctx.fillStyle = INK_SOFT;
+  ctx.font = "600 11px Inter";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("CONTA DA CASA", left, y);
+  y += 30;
+
+  ctx.fillStyle = INK;
+  ctx.font = "italic 600 28px Fraunces";
+  ctx.fillText(`${m.name} ${m.year}`, left, y);
+  y += 26;
+
+  m.items.forEach((it) => {
+    y += rowH;
+    ctx.fillStyle = INK;
+    ctx.font = "500 14px Inter";
+    ctx.fillText(it.label, left, y);
+    const valText = BRL(parseFloat(it.value) || 0);
+    ctx.font = "500 14px 'IBM Plex Mono'";
+    const valW = ctx.measureText(valText).width;
+    ctx.fillStyle = INK;
+    ctx.fillText(valText, right - valW, y);
+    ctx.strokeStyle = "#B9AE8E";
+    ctx.setLineDash([1.5, 3]);
+    ctx.beginPath();
+    ctx.moveTo(left + ctx.measureText(it.label).width + 78, y - 4);
+    ctx.lineTo(right - valW - 8, y - 4);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  y += 22;
+  ctx.strokeStyle = GOLD;
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  y += 26;
+
+  ctx.font = "500 13px Inter";
+  ctx.fillStyle = INK_SOFT;
+  ctx.fillText("Total da casa", left, y);
+  ctx.font = "500 13px 'IBM Plex Mono'";
+  const tW = ctx.measureText(BRL(total)).width;
+  ctx.fillText(BRL(total), right - tW, y);
+
+  y += 24;
+  ctx.font = "500 13px Inter";
+  ctx.fillText("Metade (÷2)", left, y);
+  ctx.font = "500 13px 'IBM Plex Mono'";
+  const hW = ctx.measureText(BRL(half)).width;
+  ctx.fillText(BRL(half), right - hW, y);
+
+  if (m.extras.length) {
+    y += 30;
+    ctx.font = "600 11px Inter";
+    ctx.fillStyle = INK_SOFT;
+    ctx.fillText("FORA DO PADRÃO", left, y);
+    m.extras.forEach((ex) => {
+      y += rowH;
+      const v = parseFloat(ex.value) || 0;
+      ctx.font = "500 14px Inter";
+      ctx.fillStyle = INK;
+      ctx.fillText(ex.label, left, y);
+      const valText = `${v >= 0 ? "+" : ""}${BRL(v)}`;
+      ctx.font = "500 14px 'IBM Plex Mono'";
+      ctx.fillStyle = v < 0 ? WINE : JADE;
+      const vw = ctx.measureText(valText).width;
+      ctx.fillText(valText, right - vw, y);
+    });
+  }
+
+  y += 26;
+  ctx.strokeStyle = GOLD;
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  y += 40;
+  ctx.font = "600 12px Inter";
+  ctx.fillStyle = INK_SOFT;
+  ctx.fillText("SUA PARTE", left, y);
+  ctx.font = "600 32px Fraunces";
+  ctx.fillStyle = INK;
+  const finalText = BRL(final);
+  const fW = ctx.measureText(finalText).width;
+  ctx.fillText(finalText, right - fW, y + 4);
+
+  return canvas;
+}
+
+function EditableLabel({ value, onCommit }) {
+  const [editing, setEditing] = useState(false);
+  const [temp, setTemp] = useState(value);
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={temp}
+        onChange={(e) => setTemp(e.target.value)}
+        onBlur={() => { setEditing(false); if (temp.trim()) onCommit(temp.trim()); }}
+        onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+        className="bg-transparent border-b border-dashed"
+        style={{ borderColor: GOLD, color: INK, fontSize: 13, minWidth: 60, outline: "none" }}
+      />
+    );
+  }
+  return (
+    <button
+      onClick={() => { setTemp(value); setEditing(true); }}
+      style={{ color: INK, fontSize: 13, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+    >
+      {value}
+    </button>
+  );
+}
+
+function EditableValue({ value, onCommit, colorHex }) {
+  const [editing, setEditing] = useState(false);
+  const [temp, setTemp] = useState(String(value));
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        inputMode="decimal"
+        value={temp}
+        onChange={(e) => setTemp(e.target.value)}
+        onBlur={() => {
+          setEditing(false);
+          const parsed = parseFloat(String(temp).replace(",", "."));
+          onCommit(isNaN(parsed) ? 0 : parsed);
+        }}
+        onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+        className="bg-transparent border-b border-dashed w-20 text-right"
+        style={{ borderColor: GOLD, color: INK, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13.5, outline: "none" }}
+      />
+    );
+  }
+  return (
+    <button
+      onClick={() => { setTemp(String(value)); setEditing(true); }}
+      className="font-mono tabular-nums text-[13.5px]"
+      style={{ color: colorHex || INK, background: "none", border: "none", cursor: "pointer" }}
+    >
+      {BRL(value)}
+    </button>
+  );
+}
+
+function LineRow({ label, value, colorHex, onLabelChange, onValueChange, onRemove }) {
+  return (
+    <div className="flex items-center gap-2 py-1.5">
+      <EditableLabel value={label} onCommit={onLabelChange} />
+      <span className="flex-1 border-b border-dotted" style={{ borderColor: "#B9AE8E" }} />
+      <EditableValue value={value} onCommit={onValueChange} colorHex={colorHex} />
+      <button
+        onClick={onRemove}
+        className="ml-1 text-[13px] w-5 h-5 flex items-center justify-center rounded-full"
+        style={{ color: WINE, opacity: 0.55, background: "none", border: "none", cursor: "pointer" }}
+        aria-label={`Remover ${label}`}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function AddRow({ placeholder, onAdd, accentHex }) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const [value, setValue] = useState("");
+
+  const submit = () => {
+    if (!label.trim() || value === "") return;
+    onAdd({ label: label.trim(), value: parseFloat(value.replace(",", ".")) || 0 });
+    setLabel(""); setValue(""); setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="mt-1.5 text-[12px] font-semibold flex items-center gap-1" style={{ color: accentHex, background: "none", border: "none", cursor: "pointer" }}>
+        <span className="text-[15px] leading-none">+</span> {placeholder}
+      </button>
+    );
+  }
+  return (
+    <div className="mt-2 flex items-center gap-1.5">
+      <input
+        autoFocus
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        placeholder="Descrição"
+        className="flex-1 min-w-0 rounded px-2 py-1.5 text-[13px]"
+        style={{ background: "#F1EBDA", border: `1px solid ${LINE}`, color: INK }}
+      />
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="0,00"
+        inputMode="decimal"
+        className="w-20 rounded px-2 py-1.5 text-[13px] font-mono"
+        style={{ background: "#F1EBDA", border: `1px solid ${LINE}`, color: INK }}
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+      />
+      <button onClick={submit} className="text-white text-[12px] font-semibold px-2.5 py-1.5 rounded" style={{ backgroundColor: accentHex, border: "none", cursor: "pointer" }}>OK</button>
+      <button onClick={() => setOpen(false)} className="text-[12px] px-1" style={{ color: INK_SOFT, background: "none", border: "none", cursor: "pointer" }}>✕</button>
+    </div>
+  );
+}
+
+function Jambalaia() {
+  const [months, setMonths] = useState(null);
+  const [activeId, setActiveId] = useState(null);
+  const [toast, setToast] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const scrollerRef = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await window.storage.get("jambalaia-months");
+        if (res && res.value) {
+          const parsed = JSON.parse(res.value);
+          setMonths(parsed);
+          setActiveId(parsed[parsed.length - 1]?.id ?? null);
+        } else throw new Error("no data");
+      } catch (e) {
+        const seeded = seedMonths(2026);
+        setMonths(seeded);
+        setActiveId(seeded[seeded.length - 1].id);
+        try { await window.storage.set("jambalaia-months", JSON.stringify(seeded)); } catch (_) {}
+      } finally { setLoading(false); }
+    })();
+  }, []);
+
+  const persist = async (next) => {
+    setMonths(next);
+    try { await window.storage.set("jambalaia-months", JSON.stringify(next)); } catch (_) {}
+  };
+
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2400); };
+
+  if (loading || !months) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: APP_BG }}>
+        <div className="font-mono text-sm animate-pulse" style={{ color: GOLD }}>carregando recibos…</div>
+      </div>
+    );
+  }
+
+  const active = months.find((m) => m.id === activeId) || months[months.length - 1];
+  const { total, half, final } = computeMonth(active);
+
+  const updateActive = (fn) => persist(months.map((m) => (m.id === active.id ? fn(m) : m)));
+
+  const addItem = (item) => updateActive((m) => ({ ...m, items: [...m.items, { id: uid(), ...item }] }));
+  const removeItem = (id) => updateActive((m) => ({ ...m, items: m.items.filter((i) => i.id !== id) }));
+  const editItem = (id, field, val) => updateActive((m) => ({ ...m, items: m.items.map((i) => (i.id === id ? { ...i, [field]: val } : i)) }));
+  const addExtra = (extra) => updateActive((m) => ({ ...m, extras: [...m.extras, { id: uid(), ...extra }] }));
+  const removeExtra = (id) => updateActive((m) => ({ ...m, extras: m.extras.filter((i) => i.id !== id) }));
+  const editExtra = (id, field, val) => updateActive((m) => ({ ...m, extras: m.extras.map((i) => (i.id === id ? { ...i, [field]: val } : i)) }));
+
+  const addMonth = () => {
+    const usedNames = months.filter((m) => m.year === active.year).map((m) => m.name);
+    const nextIdx = MONTH_NAMES.findIndex((n) => !usedNames.includes(n));
+    const name = nextIdx === -1 ? "Novo mês" : MONTH_NAMES[nextIdx];
+    const carry = active.items.map((it) => ({ id: uid(), label: it.label, value: it.label === "Net" ? it.value : 0 }));
+    const newMonth = { id: uid(), name, year: active.year, items: carry, extras: [] };
+    const next = [...months, newMonth];
+    persist(next);
+    setActiveId(newMonth.id);
+    setTimeout(() => scrollerRef.current?.scrollTo({ left: 999999, behavior: "smooth" }), 50);
+  };
+
+  const removeMonth = (id) => {
+    if (months.length <= 1) return;
+    const next = months.filter((m) => m.id !== id);
+    persist(next);
+    if (activeId === id) setActiveId(next[next.length - 1].id);
+  };
+
+  const copyText = async () => {
+    try { await navigator.clipboard.writeText(buildReceiptText(active)); showToast("Texto copiado ✓"); }
+    catch (e) { showToast("Não foi possível copiar"); }
+  };
+
+  const exportImage = async () => {
+    setExporting(true);
+    try {
+      const canvas = await drawReceiptCanvas(active);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
+      if (!blob) throw new Error("no blob");
+      const file = new File([blob], `recibo-${active.name}-${active.year}.jpg`, { type: "image/jpeg" });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: `Recibo ${active.name}`, text: `Conta de ${active.name}` });
+          showToast("Enviado ✓");
+          setExporting(false);
+          return;
+        } catch (shareErr) {}
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `recibo-${active.name}-${active.year}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast("Imagem baixada ✓");
+    } catch (e) {
+      showToast("Não foi possível gerar a imagem");
+    }
+    setExporting(false);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: APP_BG }}>
+      <div className="flex flex-col flex-1">
+        <div className="px-5 pt-6 pb-3 flex items-end justify-between">
+          <div>
+            <div className="text-[11px] tracking-[0.2em] font-semibold" style={{ color: INK_SOFT }}>CONTROLE DA CASA</div>
+            <h1 className="italic text-[26px] leading-tight -mt-0.5" style={{ color: INK, fontFamily: "'Fraunces', serif" }}>Jambalaia</h1>
+          </div>
+          <div className="text-[11px] font-mono mb-1" style={{ color: INK_SOFT }}>{active.year}</div>
+        </div>
+
+        <div ref={scrollerRef} className="flex gap-2 px-5 pb-4 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          {months.map((m) => {
+            const isActive = m.id === active.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setActiveId(m.id)}
+                className="shrink-0 px-3.5 py-1.5 rounded-full text-[13px] font-semibold border transition-colors"
+                style={isActive
+                  ? { background: GOLD, color: PAPER, borderColor: GOLD }
+                  : { background: "transparent", color: INK_SOFT, borderColor: LINE }}
+              >
+                {m.name.slice(0, 3)}
+              </button>
+            );
+          })}
+          <button onClick={addMonth} className="shrink-0 w-8 h-8 rounded-full border border-dashed flex items-center justify-center text-sm" style={{ borderColor: "#C2B892", color: INK_SOFT }} aria-label="Adicionar mês">+</button>
+        </div>
+
+        <div className="px-5 pb-6 flex-1">
+          <div className="max-w-md mx-auto">
+            <div className="rounded-t-sm relative" style={{ background: PAPER, boxShadow: "0 18px 34px -18px rgba(43,33,24,0.35)" }}>
+              <div
+                aria-hidden="true"
+                style={{
+                  height: 14,
+                  backgroundImage: `radial-gradient(circle at 10px 0px, ${APP_BG} 7px, transparent 7.5px)`,
+                  backgroundSize: "20px 20px",
+                  backgroundRepeat: "repeat-x",
+                  backgroundPosition: "top center",
+                }}
+              />
+              <div className="px-6 pt-3 pb-6">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10.5px] tracking-[0.18em] font-semibold" style={{ color: INK_SOFT }}>
+                    RECIBO Nº {String(months.indexOf(active) + 1).padStart(2, "0")}
+                  </span>
+                  {months.length > 1 && (
+                    <button onClick={() => removeMonth(active.id)} className="text-[10px]" style={{ color: WINE, opacity: 0.75, background: "none", border: "none", cursor: "pointer" }}>excluir mês</button>
+                  )}
+                </div>
+                <h2 className="text-[22px] mb-3" style={{ color: INK, fontFamily: "'Fraunces', serif" }}>
+                  {active.name} <span className="text-[15px]" style={{ color: INK_SOFT }}>{active.year}</span>
+                </h2>
+
+                <div className="divide-y" style={{ borderColor: "#EAE2CB" }}>
+                  {active.items.map((it) => (
+                    <LineRow
+                      key={it.id}
+                      label={it.label}
+                      value={parseFloat(it.value) || 0}
+                      onLabelChange={(v) => editItem(it.id, "label", v)}
+                      onValueChange={(v) => editItem(it.id, "value", v)}
+                      onRemove={() => removeItem(it.id)}
+                    />
+                  ))}
+                </div>
+                <AddRow placeholder="adicionar conta" onAdd={addItem} accentHex={JADE} />
+
+                <div className="my-4 h-px" style={{ backgroundImage: `repeating-linear-gradient(90deg, ${GOLD} 0 6px, transparent 6px 12px)` }} />
+
+                <div className="flex justify-between text-[13px] mb-1" style={{ color: INK_SOFT }}>
+                  <span>Total da casa</span><span className="font-mono">{BRL(total)}</span>
+                </div>
+                <div className="flex justify-between text-[13px] mb-3" style={{ color: INK_SOFT }}>
+                  <span>Metade (÷ 2)</span><span className="font-mono">{BRL(half)}</span>
+                </div>
+
+                {active.extras.length > 0 && (
+                  <div className="mb-3">
+                    <div className="text-[10.5px] tracking-[0.14em] font-semibold mb-1" style={{ color: INK_SOFT }}>FORA DO PADRÃO</div>
+                    <div className="divide-y" style={{ borderColor: "#EAE2CB" }}>
+                      {active.extras.map((ex) => {
+                        const v = parseFloat(ex.value) || 0;
+                        return (
+                          <LineRow
+                            key={ex.id}
+                            label={ex.label}
+                            value={v}
+                            colorHex={v < 0 ? WINE : JADE}
+                            onLabelChange={(val) => editExtra(ex.id, "label", val)}
+                            onValueChange={(val) => editExtra(ex.id, "value", val)}
+                            onRemove={() => removeExtra(ex.id)}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <AddRow placeholder="adicionar extra" onAdd={addExtra} accentHex={WINE} />
+
+                <div className="my-4 h-px" style={{ backgroundImage: `repeating-linear-gradient(90deg, ${GOLD} 0 6px, transparent 6px 12px)` }} />
+
+                <div className="flex justify-between items-baseline">
+                  <span className="text-[12px] tracking-wide font-semibold" style={{ color: INK_SOFT }}>SUA PARTE</span>
+                  <span className="text-[30px]" style={{ color: INK, fontFamily: "'Fraunces', serif" }}>{BRL(final)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-b-sm overflow-hidden">
+              <div style={{
+                height: 12, backgroundColor: PAPER,
+                clipPath: "polygon(0% 0%,100% 0%,100% 40%,92% 100%,84% 40%,76% 100%,68% 40%,60% 100%,52% 40%,44% 100%,36% 40%,28% 100%,20% 40%,12% 100%,4% 40%,0% 100%)",
+              }} />
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button onClick={copyText} className="flex-1 font-semibold text-[13px] py-2.5 rounded-lg active:scale-[0.98] transition-transform" style={{ background: "#E4DBC4", color: INK, border: "none", cursor: "pointer" }}>
+                Copiar texto
+              </button>
+              <button onClick={exportImage} disabled={exporting} className="flex-1 font-semibold text-[13px] py-2.5 rounded-lg active:scale-[0.98] transition-transform text-white disabled:opacity-60" style={{ background: GOLD, border: "none", cursor: "pointer" }}>
+                {exporting ? "Gerando…" : "Baixar imagem"}
+              </button>
+            </div>
+            <p className="text-[11px] text-center mt-2" style={{ color: INK_SOFT }}>
+              Toque em qualquer valor ou descrição do recibo para editar.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-[12.5px] px-4 py-2 rounded-full shadow-lg" style={{ background: INK, color: PAPER }}>
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Jambalaia />);
+</script>
+</body>
+</html>
