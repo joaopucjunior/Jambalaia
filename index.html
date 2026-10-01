@@ -6,7 +6,6 @@
 <title>Jambalaia</title>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23B4842B'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='%23FBF7EC' font-family='Georgia,serif' font-style='italic'%3EJ%3C/text%3E%3C/svg%3E" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Jambalaia" />
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -19,70 +18,86 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<!-- Firebase (compat SDK — simplest for a single-file, no-build setup) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div id="root"></div>
 <script>
-  // Local storage polyfill matching the artifact storage API shape used below.
-  window.storage = {
-    get: async (key) => {
-      const v = localStorage.getItem(key);
-      return v !== null ? { key, value: v } : null;
-    },
-    set: async (key, value) => {
-      localStorage.setItem(key, value);
-      return { key, value };
-    },
+  // ====== COLE AQUI A CONFIG DO FIREBASE (console.firebase.google.com → seu projeto → ícone </> ) ======
+  window.__FIREBASE_CONFIG__ = {
+    apiKey: "AIzaSyBzJZLzIGMPzpVBtRuLFr_L_rNQs6I03Bg",
+    authDomain: "jambalaya-b8c49.firebaseapp.com",
+    projectId: "jambalaya-b8c49",
+    storageBucket: "jambalaya-b8c49.firebasestorage.app",
+    messagingSenderId: "780681976149",
+    appId: "1:780681976149:web:32969d78180aa88d8cf7dc"
   };
+  // =======================================================================================
 </script>
 <script type="text/babel" data-presets="react">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useMemo } = React;
+
+const FIREBASE_CONFIG = window.__FIREBASE_CONFIG__;
+const FIREBASE_READY = FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey.indexOf("COLE_AQUI") === -1;
+
+let db = null;
+if (FIREBASE_READY) {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+  } catch (e) { console.error("Firebase init falhou:", e); db = null; }
+}
+
+const DOC_REF = () => db.collection("jambalaia").doc("state");
 
 const MONTH_NAMES = [
   "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
   "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"
 ];
 
-const SEED = [
-  { name: "Janeiro", items: [
-      { label: "Luz", value: 353.91 },
-      { label: "Condomínio", value: 117.33 },
-      { label: "Aluguel", value: 372 },
-      { label: "Net", value: 82.82 },
-    ], extras: [] },
-  { name: "Fevereiro", items: [
-      { label: "Luz", value: 320.24 },
-      { label: "Condomínio", value: 112.69 },
-      { label: "Aluguel", value: 370 },
-      { label: "Manutenção garagem", value: 55 },
-      { label: "Net", value: 82.34 },
-    ], extras: [ { label: "Havaianas", value: -55 } ] },
-  { name: "Março", items: [
-      { label: "Luz", value: 326.88 },
-      { label: "Condomínio", value: 116.71 },
-      { label: "Aluguel", value: 370 },
-      { label: "Net", value: 82.82 },
-    ], extras: [] },
-  { name: "Abril", items: [
-      { label: "Luz", value: 375.92 },
-      { label: "Condomínio", value: 115 },
-      { label: "Aluguel", value: 370 },
-      { label: "Manutenção do esgoto", value: 47 },
-      { label: "Net", value: 82.82 },
-    ], extras: [ { label: "Insider", value: 86.75 } ] },
-  { name: "Maio", items: [
-      { label: "Luz", value: 383.8 },
-      { label: "Condomínio", value: 121.26 },
-      { label: "Aluguel", value: 370 },
-      { label: "Net", value: 82.82 },
-    ], extras: [ { label: "Conserto do chuveiro", value: -25 } ] },
-  { name: "Junho", items: [
-      { label: "Luz", value: 0 },
-      { label: "Condomínio", value: 132.28 },
-      { label: "Aluguel", value: 370 },
-      { label: "Faxineira", value: 200 },
-      { label: "Net", value: 82.82 },
-    ], extras: [] },
+// Dados reais já preenchidos (Jan–Set 2026), migrados do app anterior.
+const SEED_MONTHS = [
+  { name: "Janeiro", year: 2026, items: [
+      { label: "Luz", value: 353.91 }, { label: "Condomínio", value: 117.33 },
+      { label: "Aluguel", value: 372 }, { label: "Net", value: 82.82 } ], extras: [] },
+  { name: "Fevereiro", year: 2026, items: [
+      { label: "Luz", value: 320.24 }, { label: "Condomínio", value: 112.69 },
+      { label: "Aluguel", value: 370 }, { label: "Manutenção garagem", value: 55 },
+      { label: "Net", value: 82.34 } ], extras: [ { label: "Havaianas", value: -55, split: "all" } ] },
+  { name: "Março", year: 2026, items: [
+      { label: "Luz", value: 326.88 }, { label: "Condomínio", value: 116.71 },
+      { label: "Aluguel", value: 370 }, { label: "Net", value: 82.82 } ], extras: [] },
+  { name: "Abril", year: 2026, items: [
+      { label: "Luz", value: 375.92 }, { label: "Condomínio", value: 115 },
+      { label: "Aluguel", value: 370 }, { label: "Manutenção do esgoto", value: 47 },
+      { label: "Net", value: 82.82 } ], extras: [ { label: "Insider", value: 86.75, split: "all" } ] },
+  { name: "Maio", year: 2026, items: [
+      { label: "Luz", value: 383.8 }, { label: "Condomínio", value: 121.26 },
+      { label: "Aluguel", value: 370 }, { label: "Net", value: 82.82 } ], extras: [ { label: "Conserto do chuveiro", value: -25, split: "all" } ] },
+  { name: "Junho", year: 2026, items: [
+      { label: "Luz", value: 0 }, { label: "Condomínio", value: 132.28 },
+      { label: "Aluguel", value: 370 }, { label: "Faxineira", value: 200 },
+      { label: "Net", value: 82.82 } ], extras: [] },
+  { name: "Julho", year: 2026, items: [
+      { label: "Luz", value: 324.45 }, { label: "Condomínio", value: 118.09 },
+      { label: "Aluguel", value: 370 }, { label: "Net", value: 82.82 } ],
+      extras: [ { label: "Churrasco e Serrotinho", value: 100, split: "all" } ] },
+  { name: "Agosto", year: 2026, items: [
+      { label: "Luz", value: 322.34 }, { label: "Condomínio", value: 126.57 },
+      { label: "Net", value: 90.46 }, { label: "Aluguel", value: 362 } ],
+      extras: [ { label: "Livro", value: 34.32, split: "all" } ] },
+  { name: "Setembro", year: 2026, items: [
+      { label: "Luz", value: 110.05 }, { label: "Condomínio", value: 130.14 },
+      { label: "Net", value: 90.46 }, { label: "Aluguel", value: 362 } ],
+      extras: [ { label: "Chuveiro", value: 128.4, split: "all" }, { label: "Fone JBL", value: 159.2, split: "all" } ] },
+];
+
+const DEFAULT_PEOPLE = [
+  { id: "p1", name: "João" },
+  { id: "p2", name: "JP" },
+  { id: "p3", name: "Polly" },
 ];
 
 const INK = "#2B2118";
@@ -94,228 +109,165 @@ const JADE = "#2F8F76";
 const WINE = "#A23B4A";
 const LINE = "#D9CFB6";
 
-function uid() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
+
+function seedState() {
+  return {
+    people: DEFAULT_PEOPLE,
+    months: SEED_MONTHS.map((m) => ({
+      id: uid(), name: m.name, year: m.year,
+      items: m.items.map((it) => ({ id: uid(), ...it })),
+      extras: m.extras.map((ex) => ({ id: uid(), split: "all", ...ex })),
+    })),
+  };
 }
 
-function seedMonths(year) {
-  return SEED.map((m) => ({
-    id: uid(),
-    name: m.name,
-    year,
-    items: m.items.map((it) => ({ id: uid(), ...it })),
-    extras: m.extras.map((ex) => ({ id: uid(), ...ex })),
-  }));
-}
+const BRL = (n) => (isNaN(n) ? 0 : n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+function sum(list) { return list.reduce((a, b) => a + (parseFloat(b.value) || 0), 0); }
 
-const BRL = (n) =>
-  (isNaN(n) ? 0 : n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-function sum(list) {
-  return list.reduce((a, b) => a + (parseFloat(b.value) || 0), 0);
-}
-
-function computeMonth(m) {
+function computeMonth(m, people) {
   const total = sum(m.items);
-  const half = total / 2;
-  const extrasTotal = sum(m.extras);
-  const final = half + extrasTotal;
-  return { total, half, extrasTotal, final };
+  const n = people.length || 1;
+  const base = total / n;
+  const perPerson = {};
+  people.forEach((p) => (perPerson[p.id] = base));
+  m.extras.forEach((ex) => {
+    const v = parseFloat(ex.value) || 0;
+    if (!ex.split || ex.split === "all") {
+      people.forEach((p) => (perPerson[p.id] += v / n));
+    } else if (perPerson[ex.split] !== undefined) {
+      perPerson[ex.split] += v;
+    } else {
+      people.forEach((p) => (perPerson[p.id] += v / n));
+    }
+  });
+  return { total, perPerson };
 }
 
-function buildReceiptText(m) {
-  const { total, half, final } = computeMonth(m);
+function buildReceiptText(m, people) {
+  const { total, perPerson } = computeMonth(m, people);
   const lines = [];
   lines.push(`CONTA DA CASA — ${m.name.toUpperCase()} ${m.year}`);
   lines.push("");
   m.items.forEach((it) => lines.push(`${it.label}: ${BRL(parseFloat(it.value) || 0)}`));
   lines.push("—");
   lines.push(`Total: ${BRL(total)}`);
-  lines.push(`Metade (÷2): ${BRL(half)}`);
   if (m.extras.length) {
     lines.push("");
     m.extras.forEach((ex) => {
       const v = parseFloat(ex.value) || 0;
-      lines.push(`${ex.label}: ${v >= 0 ? "+" : ""}${BRL(v)}`);
+      const who = !ex.split || ex.split === "all" ? "todos" : (people.find((p) => p.id === ex.split)?.name || "todos");
+      lines.push(`${ex.label} (${who}): ${v >= 0 ? "+" : ""}${BRL(v)}`);
     });
   }
   lines.push("—");
-  lines.push(`SUA PARTE: ${BRL(final)}`);
+  people.forEach((p) => lines.push(`${p.name.toUpperCase()}: ${BRL(perPerson[p.id] || 0)}`));
   return lines.join("\n");
 }
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 
-async function drawReceiptCanvas(m) {
+async function drawReceiptCanvas(m, people) {
   try {
     await Promise.all([
-      document.fonts.load('600 34px Fraunces'),
-      document.fonts.load('italic 600 34px Fraunces'),
-      document.fonts.load('600 20px Fraunces'),
-      document.fonts.load('500 14px "IBM Plex Mono"'),
-      document.fonts.load('600 12px Inter'),
-      document.fonts.load('500 15px Inter'),
+      document.fonts.load('600 34px Fraunces'), document.fonts.load('italic 600 34px Fraunces'),
+      document.fonts.load('600 20px Fraunces'), document.fonts.load('500 14px "IBM Plex Mono"'),
+      document.fonts.load('600 12px Inter'), document.fonts.load('500 15px Inter'),
     ]);
     await document.fonts.ready;
   } catch (e) {}
 
-  const { total, half, final } = computeMonth(m);
+  const { total, perPerson } = computeMonth(m, people);
   const rowH = 34;
   const extrasHeight = m.extras.length ? 34 + m.extras.length * rowH + 10 : 0;
+  const peopleHeight = people.length * 28;
   const W = 640;
-  const H = 250 + m.items.length * rowH + extrasHeight + 150;
+  const H = 230 + m.items.length * rowH + extrasHeight + peopleHeight + 110;
 
   const canvas = document.createElement("canvas");
   const scale = 2;
-  canvas.width = W * scale;
-  canvas.height = H * scale;
+  canvas.width = W * scale; canvas.height = H * scale;
   const ctx = canvas.getContext("2d");
   ctx.scale(scale, scale);
 
-  ctx.fillStyle = APP_BG;
-  ctx.fillRect(0, 0, W, H);
-
-  const pad = 26;
-  const cardY = pad + 14;
+  ctx.fillStyle = APP_BG; ctx.fillRect(0, 0, W, H);
+  const pad = 26; const cardY = pad + 14;
   roundRect(ctx, pad, cardY, W - pad * 2, H - pad * 2 - 14, 3);
-  ctx.fillStyle = PAPER;
-  ctx.fill();
-
+  ctx.fillStyle = PAPER; ctx.fill();
   ctx.fillStyle = APP_BG;
-  for (let x = pad + 10; x < W - pad; x += 20) {
-    ctx.beginPath();
-    ctx.arc(x, cardY, 7, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  for (let x = pad + 10; x < W - pad; x += 20) { ctx.beginPath(); ctx.arc(x, cardY, 7, 0, Math.PI * 2); ctx.fill(); }
 
-  let y = cardY + 44;
-  const left = pad + 30;
-  const right = W - pad - 30;
-
-  ctx.fillStyle = INK_SOFT;
-  ctx.font = "600 11px Inter";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText("CONTA DA CASA", left, y);
-  y += 30;
-
-  ctx.fillStyle = INK;
-  ctx.font = "italic 600 28px Fraunces";
-  ctx.fillText(`${m.name} ${m.year}`, left, y);
-  y += 26;
+  let y = cardY + 44; const left = pad + 30; const right = W - pad - 30;
+  ctx.fillStyle = INK_SOFT; ctx.font = "600 11px Inter"; ctx.textBaseline = "alphabetic";
+  ctx.fillText("CONTA DA CASA", left, y); y += 30;
+  ctx.fillStyle = INK; ctx.font = "italic 600 28px Fraunces";
+  ctx.fillText(`${m.name} ${m.year}`, left, y); y += 26;
 
   m.items.forEach((it) => {
     y += rowH;
-    ctx.fillStyle = INK;
-    ctx.font = "500 14px Inter";
-    ctx.fillText(it.label, left, y);
+    ctx.fillStyle = INK; ctx.font = "500 14px Inter"; ctx.fillText(it.label, left, y);
     const valText = BRL(parseFloat(it.value) || 0);
     ctx.font = "500 14px 'IBM Plex Mono'";
     const valW = ctx.measureText(valText).width;
-    ctx.fillStyle = INK;
-    ctx.fillText(valText, right - valW, y);
-    ctx.strokeStyle = "#B9AE8E";
-    ctx.setLineDash([1.5, 3]);
-    ctx.beginPath();
-    ctx.moveTo(left + ctx.measureText(it.label).width + 78, y - 4);
-    ctx.lineTo(right - valW - 8, y - 4);
-    ctx.stroke();
+    ctx.fillStyle = INK; ctx.fillText(valText, right - valW, y);
+    ctx.strokeStyle = "#B9AE8E"; ctx.setLineDash([1.5, 3]);
+    ctx.beginPath(); ctx.moveTo(left + ctx.measureText(it.label).width + 78, y - 4); ctx.lineTo(right - valW - 8, y - 4); ctx.stroke();
     ctx.setLineDash([]);
   });
 
-  y += 22;
-  ctx.strokeStyle = GOLD;
-  ctx.setLineDash([6, 6]);
-  ctx.beginPath();
-  ctx.moveTo(left, y);
-  ctx.lineTo(right, y);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  y += 26;
+  y += 22; ctx.strokeStyle = GOLD; ctx.setLineDash([6, 6]);
+  ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke(); ctx.setLineDash([]); y += 26;
 
-  ctx.font = "500 13px Inter";
-  ctx.fillStyle = INK_SOFT;
-  ctx.fillText("Total da casa", left, y);
+  ctx.font = "500 13px Inter"; ctx.fillStyle = INK_SOFT; ctx.fillText("Total da casa", left, y);
   ctx.font = "500 13px 'IBM Plex Mono'";
-  const tW = ctx.measureText(BRL(total)).width;
-  ctx.fillText(BRL(total), right - tW, y);
-
-  y += 24;
-  ctx.font = "500 13px Inter";
-  ctx.fillText("Metade (÷2)", left, y);
-  ctx.font = "500 13px 'IBM Plex Mono'";
-  const hW = ctx.measureText(BRL(half)).width;
-  ctx.fillText(BRL(half), right - hW, y);
+  const tW = ctx.measureText(BRL(total)).width; ctx.fillText(BRL(total), right - tW, y);
 
   if (m.extras.length) {
-    y += 30;
-    ctx.font = "600 11px Inter";
-    ctx.fillStyle = INK_SOFT;
-    ctx.fillText("FORA DO PADRÃO", left, y);
+    y += 30; ctx.font = "600 11px Inter"; ctx.fillStyle = INK_SOFT; ctx.fillText("FORA DO PADRÃO", left, y);
     m.extras.forEach((ex) => {
       y += rowH;
       const v = parseFloat(ex.value) || 0;
-      ctx.font = "500 14px Inter";
-      ctx.fillStyle = INK;
-      ctx.fillText(ex.label, left, y);
+      const who = !ex.split || ex.split === "all" ? "todos" : (people.find((p) => p.id === ex.split)?.name || "todos");
+      ctx.font = "500 14px Inter"; ctx.fillStyle = INK; ctx.fillText(`${ex.label} (${who})`, left, y);
       const valText = `${v >= 0 ? "+" : ""}${BRL(v)}`;
-      ctx.font = "500 14px 'IBM Plex Mono'";
-      ctx.fillStyle = v < 0 ? WINE : JADE;
-      const vw = ctx.measureText(valText).width;
-      ctx.fillText(valText, right - vw, y);
+      ctx.font = "500 14px 'IBM Plex Mono'"; ctx.fillStyle = v < 0 ? WINE : JADE;
+      const vw = ctx.measureText(valText).width; ctx.fillText(valText, right - vw, y);
     });
   }
 
-  y += 26;
-  ctx.strokeStyle = GOLD;
-  ctx.setLineDash([6, 6]);
-  ctx.beginPath();
-  ctx.moveTo(left, y);
-  ctx.lineTo(right, y);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  y += 26; ctx.strokeStyle = GOLD; ctx.setLineDash([6, 6]);
+  ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke(); ctx.setLineDash([]); y += 34;
 
-  y += 40;
-  ctx.font = "600 12px Inter";
-  ctx.fillStyle = INK_SOFT;
-  ctx.fillText("SUA PARTE", left, y);
-  ctx.font = "600 32px Fraunces";
-  ctx.fillStyle = INK;
-  const finalText = BRL(final);
-  const fW = ctx.measureText(finalText).width;
-  ctx.fillText(finalText, right - fW, y + 4);
+  people.forEach((p) => {
+    ctx.font = "600 12px Inter"; ctx.fillStyle = INK_SOFT; ctx.fillText(p.name.toUpperCase(), left, y);
+    ctx.font = "600 20px Fraunces"; ctx.fillStyle = INK;
+    const vt = BRL(perPerson[p.id] || 0); const vw = ctx.measureText(vt).width;
+    ctx.fillText(vt, right - vw, y);
+    y += 30;
+  });
 
   return canvas;
 }
 
-function EditableLabel({ value, onCommit }) {
+function EditableLabel({ value, onCommit, style }) {
   const [editing, setEditing] = useState(false);
   const [temp, setTemp] = useState(value);
   if (editing) {
     return (
-      <input
-        autoFocus
-        value={temp}
-        onChange={(e) => setTemp(e.target.value)}
+      <input autoFocus value={temp} onChange={(e) => setTemp(e.target.value)}
         onBlur={() => { setEditing(false); if (temp.trim()) onCommit(temp.trim()); }}
         onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
         className="bg-transparent border-b border-dashed"
-        style={{ borderColor: GOLD, color: INK, fontSize: 13, minWidth: 60, outline: "none" }}
-      />
+        style={{ borderColor: GOLD, color: INK, fontSize: 13, minWidth: 60, outline: "none", ...style }} />
     );
   }
   return (
-    <button
-      onClick={() => { setTemp(value); setEditing(true); }}
-      style={{ color: INK, fontSize: 13, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer" }}
-    >
+    <button onClick={() => { setTemp(value); setEditing(true); }}
+      style={{ color: INK, fontSize: 13, textAlign: "left", background: "none", border: "none", cursor: "pointer", ...style }}>
       {value}
     </button>
   );
@@ -326,125 +278,160 @@ function EditableValue({ value, onCommit, colorHex }) {
   const [temp, setTemp] = useState(String(value));
   if (editing) {
     return (
-      <input
-        autoFocus
-        inputMode="decimal"
-        value={temp}
-        onChange={(e) => setTemp(e.target.value)}
-        onBlur={() => {
-          setEditing(false);
-          const parsed = parseFloat(String(temp).replace(",", "."));
-          onCommit(isNaN(parsed) ? 0 : parsed);
-        }}
+      <input autoFocus inputMode="decimal" value={temp} onChange={(e) => setTemp(e.target.value)}
+        onBlur={() => { setEditing(false); const parsed = parseFloat(String(temp).replace(",", ".")); onCommit(isNaN(parsed) ? 0 : parsed); }}
         onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
         className="bg-transparent border-b border-dashed w-20 text-right"
-        style={{ borderColor: GOLD, color: INK, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13.5, outline: "none" }}
-      />
+        style={{ borderColor: GOLD, color: INK, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13.5, outline: "none" }} />
     );
   }
   return (
-    <button
-      onClick={() => { setTemp(String(value)); setEditing(true); }}
+    <button onClick={() => { setTemp(String(value)); setEditing(true); }}
       className="font-mono tabular-nums text-[13.5px]"
-      style={{ color: colorHex || INK, background: "none", border: "none", cursor: "pointer" }}
-    >
+      style={{ color: colorHex || INK, background: "none", border: "none", cursor: "pointer" }}>
       {BRL(value)}
     </button>
   );
 }
 
-function LineRow({ label, value, colorHex, onLabelChange, onValueChange, onRemove }) {
+function AssigneeChip({ split, people, onChange }) {
+  const options = ["all", ...people.map((p) => p.id)];
+  const label = split === "all" || !split ? "Todos" : (people.find((p) => p.id === split)?.name.split(" ")[0] || "Todos");
+  const cycle = () => {
+    const idx = options.indexOf(split || "all");
+    onChange(options[(idx + 1) % options.length]);
+  };
+  return (
+    <button onClick={cycle} className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+      style={{ background: "#EDE4CC", color: INK_SOFT, border: `1px solid ${LINE}`, cursor: "pointer" }}>
+      {label}
+    </button>
+  );
+}
+
+function LineRow({ label, value, colorHex, split, people, onLabelChange, onValueChange, onSplitChange, onRemove }) {
   return (
     <div className="flex items-center gap-2 py-1.5">
       <EditableLabel value={label} onCommit={onLabelChange} />
       <span className="flex-1 border-b border-dotted" style={{ borderColor: "#B9AE8E" }} />
+      {people && <AssigneeChip split={split} people={people} onChange={onSplitChange} />}
       <EditableValue value={value} onCommit={onValueChange} colorHex={colorHex} />
-      <button
-        onClick={onRemove}
-        className="ml-1 text-[13px] w-5 h-5 flex items-center justify-center rounded-full"
-        style={{ color: WINE, opacity: 0.55, background: "none", border: "none", cursor: "pointer" }}
-        aria-label={`Remover ${label}`}
-      >
-        ✕
-      </button>
+      <button onClick={onRemove} className="ml-1 text-[13px] w-5 h-5 flex items-center justify-center rounded-full"
+        style={{ color: WINE, opacity: 0.55, background: "none", border: "none", cursor: "pointer" }} aria-label={`Remover ${label}`}>✕</button>
     </div>
   );
 }
 
-function AddRow({ placeholder, onAdd, accentHex }) {
+function AddRow({ placeholder, onAdd, accentHex, people }) {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
+  const [split, setSplit] = useState("all");
 
   const submit = () => {
     if (!label.trim() || value === "") return;
-    onAdd({ label: label.trim(), value: parseFloat(value.replace(",", ".")) || 0 });
-    setLabel(""); setValue(""); setOpen(false);
+    const payload = { label: label.trim(), value: parseFloat(value.replace(",", ".")) || 0 };
+    if (people) payload.split = split;
+    onAdd(payload);
+    setLabel(""); setValue(""); setSplit("all"); setOpen(false);
   };
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="mt-1.5 text-[12px] font-semibold flex items-center gap-1" style={{ color: accentHex, background: "none", border: "none", cursor: "pointer" }}>
+      <button onClick={() => setOpen(true)} className="mt-1.5 text-[12px] font-semibold flex items-center gap-1"
+        style={{ color: accentHex, background: "none", border: "none", cursor: "pointer" }}>
         <span className="text-[15px] leading-none">+</span> {placeholder}
       </button>
     );
   }
   return (
-    <div className="mt-2 flex items-center gap-1.5">
-      <input
-        autoFocus
-        value={label}
-        onChange={(e) => setLabel(e.target.value)}
-        placeholder="Descrição"
-        className="flex-1 min-w-0 rounded px-2 py-1.5 text-[13px]"
-        style={{ background: "#F1EBDA", border: `1px solid ${LINE}`, color: INK }}
-      />
-      <input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="0,00"
-        inputMode="decimal"
-        className="w-20 rounded px-2 py-1.5 text-[13px] font-mono"
-        style={{ background: "#F1EBDA", border: `1px solid ${LINE}`, color: INK }}
-        onKeyDown={(e) => e.key === "Enter" && submit()}
-      />
-      <button onClick={submit} className="text-white text-[12px] font-semibold px-2.5 py-1.5 rounded" style={{ backgroundColor: accentHex, border: "none", cursor: "pointer" }}>OK</button>
-      <button onClick={() => setOpen(false)} className="text-[12px] px-1" style={{ color: INK_SOFT, background: "none", border: "none", cursor: "pointer" }}>✕</button>
+    <div className="mt-2 space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <input autoFocus value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Descrição"
+          className="flex-1 min-w-0 rounded px-2 py-1.5 text-[13px]"
+          style={{ background: "#F1EBDA", border: `1px solid ${LINE}`, color: INK }} />
+        <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="0,00" inputMode="decimal"
+          className="w-20 rounded px-2 py-1.5 text-[13px] font-mono"
+          style={{ background: "#F1EBDA", border: `1px solid ${LINE}`, color: INK }}
+          onKeyDown={(e) => e.key === "Enter" && submit()} />
+      </div>
+      {people && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px]" style={{ color: INK_SOFT }}>pra quem:</span>
+          {["all", ...people.map((p) => p.id)].map((opt) => {
+            const name = opt === "all" ? "Todos" : people.find((p) => p.id === opt)?.name.split(" ")[0];
+            const active = split === opt;
+            return (
+              <button key={opt} onClick={() => setSplit(opt)}
+                className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                style={active ? { background: accentHex, color: PAPER, border: `1px solid ${accentHex}` } : { background: "transparent", color: INK_SOFT, border: `1px solid ${LINE}` }}>
+                {name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <button onClick={submit} className="text-white text-[12px] font-semibold px-2.5 py-1.5 rounded" style={{ backgroundColor: accentHex, border: "none", cursor: "pointer" }}>OK</button>
+        <button onClick={() => setOpen(false)} className="text-[12px] px-1" style={{ color: INK_SOFT, background: "none", border: "none", cursor: "pointer" }}>✕</button>
+      </div>
     </div>
   );
 }
 
 function Jambalaia() {
+  const [people, setPeople] = useState(DEFAULT_PEOPLE);
   const [months, setMonths] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [showBackup, setShowBackup] = useState(false);
-  const [backupText, setBackupText] = useState("");
   const scrollerRef = useRef(null);
 
   useEffect(() => {
-    (async () => {
+    if (db) {
+      const unsub = DOC_REF().onSnapshot(
+        (snap) => {
+          if (snap.exists) {
+            const data = snap.data();
+            setPeople(data.people && data.people.length ? data.people : DEFAULT_PEOPLE);
+            setMonths(data.months || []);
+            setActiveId((prev) => prev || (data.months && data.months.length ? data.months[data.months.length - 1].id : null));
+          } else {
+            const seeded = seedState();
+            DOC_REF().set(seeded);
+          }
+          setLoading(false);
+        },
+        (err) => { console.error(err); showToast("Erro ao conectar no Firebase"); setLoading(false); }
+      );
+      return () => unsub();
+    } else {
       try {
-        const res = await window.storage.get("jambalaia-months");
-        if (res && res.value) {
-          const parsed = JSON.parse(res.value);
-          setMonths(parsed);
-          setActiveId(parsed[parsed.length - 1]?.id ?? null);
+        const raw = localStorage.getItem("jambalaia-state-v2");
+        if (raw) {
+          const data = JSON.parse(raw);
+          setPeople(data.people || DEFAULT_PEOPLE);
+          setMonths(data.months || []);
+          setActiveId(data.months?.[data.months.length - 1]?.id ?? null);
         } else throw new Error("no data");
       } catch (e) {
-        const seeded = seedMonths(2026);
-        setMonths(seeded);
-        setActiveId(seeded[seeded.length - 1].id);
-        try { await window.storage.set("jambalaia-months", JSON.stringify(seeded)); } catch (_) {}
-      } finally { setLoading(false); }
-    })();
+        const seeded = seedState();
+        setPeople(seeded.people);
+        setMonths(seeded.months);
+        setActiveId(seeded.months[seeded.months.length - 1].id);
+        localStorage.setItem("jambalaia-state-v2", JSON.stringify(seeded));
+      }
+      setLoading(false);
+    }
   }, []);
 
-  const persist = async (next) => {
-    setMonths(next);
-    try { await window.storage.set("jambalaia-months", JSON.stringify(next)); } catch (_) {}
+  const persist = (nextPeople, nextMonths) => {
+    setPeople(nextPeople);
+    setMonths(nextMonths);
+    const payload = { people: nextPeople, months: nextMonths };
+    if (db) { DOC_REF().set(payload).catch((e) => showToast("Falha ao sincronizar")); }
+    else { localStorage.setItem("jambalaia-state-v2", JSON.stringify(payload)); }
   };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2400); };
@@ -458,25 +445,27 @@ function Jambalaia() {
   }
 
   const active = months.find((m) => m.id === activeId) || months[months.length - 1];
-  const { total, half, final } = computeMonth(active);
+  const { total, perPerson } = computeMonth(active, people);
 
-  const updateActive = (fn) => persist(months.map((m) => (m.id === active.id ? fn(m) : m)));
+  const updateActiveMonth = (fn) => persist(people, months.map((m) => (m.id === active.id ? fn(m) : m)));
 
-  const addItem = (item) => updateActive((m) => ({ ...m, items: [...m.items, { id: uid(), ...item }] }));
-  const removeItem = (id) => updateActive((m) => ({ ...m, items: m.items.filter((i) => i.id !== id) }));
-  const editItem = (id, field, val) => updateActive((m) => ({ ...m, items: m.items.map((i) => (i.id === id ? { ...i, [field]: val } : i)) }));
-  const addExtra = (extra) => updateActive((m) => ({ ...m, extras: [...m.extras, { id: uid(), ...extra }] }));
-  const removeExtra = (id) => updateActive((m) => ({ ...m, extras: m.extras.filter((i) => i.id !== id) }));
-  const editExtra = (id, field, val) => updateActive((m) => ({ ...m, extras: m.extras.map((i) => (i.id === id ? { ...i, [field]: val } : i)) }));
+  const addItem = (item) => updateActiveMonth((m) => ({ ...m, items: [...m.items, { id: uid(), ...item }] }));
+  const removeItem = (id) => updateActiveMonth((m) => ({ ...m, items: m.items.filter((i) => i.id !== id) }));
+  const editItem = (id, field, val) => updateActiveMonth((m) => ({ ...m, items: m.items.map((i) => (i.id === id ? { ...i, [field]: val } : i)) }));
+  const addExtra = (extra) => updateActiveMonth((m) => ({ ...m, extras: [...m.extras, { id: uid(), split: "all", ...extra }] }));
+  const removeExtra = (id) => updateActiveMonth((m) => ({ ...m, extras: m.extras.filter((i) => i.id !== id) }));
+  const editExtra = (id, field, val) => updateActiveMonth((m) => ({ ...m, extras: m.extras.map((i) => (i.id === id ? { ...i, [field]: val } : i)) }));
+
+  const editPersonName = (id, name) => persist(people.map((p) => (p.id === id ? { ...p, name } : p)), months);
 
   const addMonth = () => {
     const usedNames = months.filter((m) => m.year === active.year).map((m) => m.name);
     const nextIdx = MONTH_NAMES.findIndex((n) => !usedNames.includes(n));
     const name = nextIdx === -1 ? "Novo mês" : MONTH_NAMES[nextIdx];
-    const carry = active.items.map((it) => ({ id: uid(), label: it.label, value: it.label === "Net" ? it.value : 0 }));
+    // Carrega TODOS os itens fixos do mês anterior com os mesmos valores — só ajusta o que mudou.
+    const carry = active.items.map((it) => ({ id: uid(), label: it.label, value: it.value }));
     const newMonth = { id: uid(), name, year: active.year, items: carry, extras: [] };
-    const next = [...months, newMonth];
-    persist(next);
+    persist(people, [...months, newMonth]);
     setActiveId(newMonth.id);
     setTimeout(() => scrollerRef.current?.scrollTo({ left: 999999, behavior: "smooth" }), 50);
   };
@@ -484,86 +473,70 @@ function Jambalaia() {
   const removeMonth = (id) => {
     if (months.length <= 1) return;
     const next = months.filter((m) => m.id !== id);
-    persist(next);
+    persist(people, next);
     if (activeId === id) setActiveId(next[next.length - 1].id);
   };
 
-  const exportBackup = async () => {
-    const raw = localStorage.getItem("jambalaia-months") || "[]";
-    setBackupText(raw);
-    setShowBackup(true);
-    try {
-      await navigator.clipboard.writeText(raw);
-      showToast("Backup copiado — cole no chat ✓");
-    } catch (e) {
-      showToast('Toque em "selecionar tudo" abaixo e copie manualmente');
-    }
-  };
-
   const copyText = async () => {
-    try { await navigator.clipboard.writeText(buildReceiptText(active)); showToast("Texto copiado ✓"); }
+    try { await navigator.clipboard.writeText(buildReceiptText(active, people)); showToast("Texto copiado ✓"); }
     catch (e) { showToast("Não foi possível copiar"); }
   };
 
   const exportImage = async () => {
     setExporting(true);
     try {
-      const canvas = await drawReceiptCanvas(active);
+      const canvas = await drawReceiptCanvas(active, people);
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
       if (!blob) throw new Error("no blob");
       const file = new File([blob], `recibo-${active.name}-${active.year}.jpg`, { type: "image/jpeg" });
-
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({ files: [file], title: `Recibo ${active.name}`, text: `Conta de ${active.name}` });
-          showToast("Enviado ✓");
-          setExporting(false);
-          return;
+          showToast("Enviado ✓"); setExporting(false); return;
         } catch (shareErr) {}
       }
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `recibo-${active.name}-${active.year}.jpg`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      a.href = url; a.download = `recibo-${active.name}-${active.year}.jpg`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       showToast("Imagem baixada ✓");
-    } catch (e) {
-      showToast("Não foi possível gerar a imagem");
-    }
+    } catch (e) { showToast("Não foi possível gerar a imagem"); }
     setExporting(false);
   };
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: APP_BG }}>
       <div className="flex flex-col flex-1">
-        <div className="px-5 pt-6 pb-3 flex items-end justify-between">
+        <div className="px-5 pt-6 pb-2 flex items-end justify-between">
           <div>
             <div className="text-[11px] tracking-[0.2em] font-semibold" style={{ color: INK_SOFT }}>CONTROLE DA CASA</div>
             <h1 className="italic text-[26px] leading-tight -mt-0.5" style={{ color: INK, fontFamily: "'Fraunces', serif" }}>Jambalaia</h1>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <div className="text-[11px] font-mono" style={{ color: INK_SOFT }}>{active.year}</div>
-            <button onClick={exportBackup} className="text-[10.5px] font-semibold underline" style={{ color: GOLD, background: "none", border: "none", cursor: "pointer" }}>
-              Exportar backup
-            </button>
+          <div className="text-[11px] font-mono mb-1" style={{ color: INK_SOFT }}>{active.year}</div>
+        </div>
+
+        {!db && (
+          <div className="mx-5 mb-2 px-3 py-1.5 rounded text-[11px]" style={{ background: "#F1DCC4", color: "#7A4A1F" }}>
+            Modo local — sem Firebase configurado, os dados não sincronizam entre aparelhos ainda.
           </div>
+        )}
+
+        <div className="px-5 pb-3 flex items-center gap-1.5 flex-wrap">
+          {people.map((p) => (
+            <span key={p.id} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full" style={{ background: "#E4DBC4", color: INK }}>
+              <EditableLabel value={p.name} onCommit={(v) => editPersonName(p.id, v)} style={{ fontSize: 11, fontWeight: 600 }} />
+            </span>
+          ))}
         </div>
 
         <div ref={scrollerRef} className="flex gap-2 px-5 pb-4 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
           {months.map((m) => {
             const isActive = m.id === active.id;
             return (
-              <button
-                key={m.id}
-                onClick={() => setActiveId(m.id)}
+              <button key={m.id} onClick={() => setActiveId(m.id)}
                 className="shrink-0 px-3.5 py-1.5 rounded-full text-[13px] font-semibold border transition-colors"
-                style={isActive
-                  ? { background: GOLD, color: PAPER, borderColor: GOLD }
-                  : { background: "transparent", color: INK_SOFT, borderColor: LINE }}
-              >
+                style={isActive ? { background: GOLD, color: PAPER, borderColor: GOLD } : { background: "transparent", color: INK_SOFT, borderColor: LINE }}>
                 {m.name.slice(0, 3)}
               </button>
             );
@@ -574,16 +547,9 @@ function Jambalaia() {
         <div className="px-5 pb-6 flex-1">
           <div className="max-w-md mx-auto">
             <div className="rounded-t-sm relative" style={{ background: PAPER, boxShadow: "0 18px 34px -18px rgba(43,33,24,0.35)" }}>
-              <div
-                aria-hidden="true"
-                style={{
-                  height: 14,
-                  backgroundImage: `radial-gradient(circle at 10px 0px, ${APP_BG} 7px, transparent 7.5px)`,
-                  backgroundSize: "20px 20px",
-                  backgroundRepeat: "repeat-x",
-                  backgroundPosition: "top center",
-                }}
-              />
+              <div aria-hidden="true" style={{
+                height: 14, backgroundImage: `radial-gradient(circle at 10px 0px, ${APP_BG} 7px, transparent 7.5px)`,
+                backgroundSize: "20px 20px", backgroundRepeat: "repeat-x", backgroundPosition: "top center" }} />
               <div className="px-6 pt-3 pb-6">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10.5px] tracking-[0.18em] font-semibold" style={{ color: INK_SOFT }}>
@@ -599,25 +565,16 @@ function Jambalaia() {
 
                 <div className="divide-y" style={{ borderColor: "#EAE2CB" }}>
                   {active.items.map((it) => (
-                    <LineRow
-                      key={it.id}
-                      label={it.label}
-                      value={parseFloat(it.value) || 0}
-                      onLabelChange={(v) => editItem(it.id, "label", v)}
-                      onValueChange={(v) => editItem(it.id, "value", v)}
-                      onRemove={() => removeItem(it.id)}
-                    />
+                    <LineRow key={it.id} label={it.label} value={parseFloat(it.value) || 0}
+                      onLabelChange={(v) => editItem(it.id, "label", v)} onValueChange={(v) => editItem(it.id, "value", v)} onRemove={() => removeItem(it.id)} />
                   ))}
                 </div>
                 <AddRow placeholder="adicionar conta" onAdd={addItem} accentHex={JADE} />
 
                 <div className="my-4 h-px" style={{ backgroundImage: `repeating-linear-gradient(90deg, ${GOLD} 0 6px, transparent 6px 12px)` }} />
 
-                <div className="flex justify-between text-[13px] mb-1" style={{ color: INK_SOFT }}>
-                  <span>Total da casa</span><span className="font-mono">{BRL(total)}</span>
-                </div>
                 <div className="flex justify-between text-[13px] mb-3" style={{ color: INK_SOFT }}>
-                  <span>Metade (÷ 2)</span><span className="font-mono">{BRL(half)}</span>
+                  <span>Total da casa</span><span className="font-mono">{BRL(total)}</span>
                 </div>
 
                 {active.extras.length > 0 && (
@@ -627,81 +584,49 @@ function Jambalaia() {
                       {active.extras.map((ex) => {
                         const v = parseFloat(ex.value) || 0;
                         return (
-                          <LineRow
-                            key={ex.id}
-                            label={ex.label}
-                            value={v}
-                            colorHex={v < 0 ? WINE : JADE}
+                          <LineRow key={ex.id} label={ex.label} value={v} colorHex={v < 0 ? WINE : JADE}
+                            split={ex.split} people={people}
                             onLabelChange={(val) => editExtra(ex.id, "label", val)}
                             onValueChange={(val) => editExtra(ex.id, "value", val)}
-                            onRemove={() => removeExtra(ex.id)}
-                          />
+                            onSplitChange={(val) => editExtra(ex.id, "split", val)}
+                            onRemove={() => removeExtra(ex.id)} />
                         );
                       })}
                     </div>
                   </div>
                 )}
-                <AddRow placeholder="adicionar extra" onAdd={addExtra} accentHex={WINE} />
+                <AddRow placeholder="adicionar extra" onAdd={addExtra} accentHex={WINE} people={people} />
 
                 <div className="my-4 h-px" style={{ backgroundImage: `repeating-linear-gradient(90deg, ${GOLD} 0 6px, transparent 6px 12px)` }} />
 
-                <div className="flex justify-between items-baseline">
-                  <span className="text-[12px] tracking-wide font-semibold" style={{ color: INK_SOFT }}>SUA PARTE</span>
-                  <span className="text-[30px]" style={{ color: INK, fontFamily: "'Fraunces', serif" }}>{BRL(final)}</span>
+                <div className="space-y-1.5">
+                  {people.map((p) => (
+                    <div key={p.id} className="flex justify-between items-baseline">
+                      <span className="text-[11px] tracking-wide font-semibold" style={{ color: INK_SOFT }}>{p.name.toUpperCase()}</span>
+                      <span className="text-[22px]" style={{ color: INK, fontFamily: "'Fraunces', serif" }}>{BRL(perPerson[p.id] || 0)}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
             <div className="rounded-b-sm overflow-hidden">
-              <div style={{
-                height: 12, backgroundColor: PAPER,
-                clipPath: "polygon(0% 0%,100% 0%,100% 40%,92% 100%,84% 40%,76% 100%,68% 40%,60% 100%,52% 40%,44% 100%,36% 40%,28% 100%,20% 40%,12% 100%,4% 40%,0% 100%)",
-              }} />
+              <div style={{ height: 12, backgroundColor: PAPER,
+                clipPath: "polygon(0% 0%,100% 0%,100% 40%,92% 100%,84% 40%,76% 100%,68% 40%,60% 100%,52% 40%,44% 100%,36% 40%,28% 100%,20% 40%,12% 100%,4% 40%,0% 100%)" }} />
             </div>
 
             <div className="flex gap-2 mt-4">
-              <button onClick={copyText} className="flex-1 font-semibold text-[13px] py-2.5 rounded-lg active:scale-[0.98] transition-transform" style={{ background: "#E4DBC4", color: INK, border: "none", cursor: "pointer" }}>
-                Copiar texto
-              </button>
-              <button onClick={exportImage} disabled={exporting} className="flex-1 font-semibold text-[13px] py-2.5 rounded-lg active:scale-[0.98] transition-transform text-white disabled:opacity-60" style={{ background: GOLD, border: "none", cursor: "pointer" }}>
-                {exporting ? "Gerando…" : "Baixar imagem"}
-              </button>
+              <button onClick={copyText} className="flex-1 font-semibold text-[13px] py-2.5 rounded-lg active:scale-[0.98] transition-transform" style={{ background: "#E4DBC4", color: INK, border: "none", cursor: "pointer" }}>Copiar texto</button>
+              <button onClick={exportImage} disabled={exporting} className="flex-1 font-semibold text-[13px] py-2.5 rounded-lg active:scale-[0.98] transition-transform text-white disabled:opacity-60" style={{ background: GOLD, border: "none", cursor: "pointer" }}>{exporting ? "Gerando…" : "Baixar imagem"}</button>
             </div>
             <p className="text-[11px] text-center mt-2" style={{ color: INK_SOFT }}>
-              Toque em qualquer valor ou descrição do recibo para editar.
+              Toque em valores, descrições ou nomes para editar. Toque no selo "Todos" de um extra pra escolher de quem é.
             </p>
           </div>
         </div>
       </div>
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-[12.5px] px-4 py-2 rounded-full shadow-lg" style={{ background: INK, color: PAPER }}>
-          {toast}
-        </div>
-      )}
-
-      {showBackup && (
-        <div className="fixed inset-0 flex items-center justify-center p-5 z-50" style={{ background: "rgba(43,33,24,0.55)" }}>
-          <div className="w-full max-w-md rounded-lg p-5" style={{ background: PAPER }}>
-            <h3 className="text-[16px] font-semibold mb-1" style={{ color: INK, fontFamily: "'Fraunces', serif" }}>Backup dos dados</h3>
-            <p className="text-[12px] mb-3" style={{ color: INK_SOFT }}>
-              Se não copiou automático, toque no texto abaixo, selecione tudo e copie. Depois cole no chat do Claude.
-            </p>
-            <textarea
-              readOnly
-              value={backupText}
-              onFocus={(e) => e.target.select()}
-              className="w-full h-40 text-[11px] font-mono p-2 rounded"
-              style={{ background: "#F1EBDA", border: `1px solid ${LINE}`, color: INK }}
-            />
-            <button
-              onClick={() => setShowBackup(false)}
-              className="mt-3 w-full font-semibold text-[13px] py-2.5 rounded-lg"
-              style={{ background: GOLD, color: PAPER, border: "none", cursor: "pointer" }}
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-[12.5px] px-4 py-2 rounded-full shadow-lg" style={{ background: INK, color: PAPER }}>{toast}</div>
       )}
     </div>
   );
