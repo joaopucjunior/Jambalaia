@@ -420,6 +420,8 @@ function Jambalaia() {
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [showBackup, setShowBackup] = useState(false);
+  const [backupText, setBackupText] = useState("");
   const scrollerRef = useRef(null);
 
   useEffect(() => {
@@ -486,6 +488,18 @@ function Jambalaia() {
     if (activeId === id) setActiveId(next[next.length - 1].id);
   };
 
+  const exportBackup = async () => {
+    const raw = localStorage.getItem("jambalaia-months") || "[]";
+    setBackupText(raw);
+    setShowBackup(true);
+    try {
+      await navigator.clipboard.writeText(raw);
+      showToast("Backup copiado — cole no chat ✓");
+    } catch (e) {
+      showToast('Toque em "selecionar tudo" abaixo e copie manualmente');
+    }
+  };
+
   const copyText = async () => {
     try { await navigator.clipboard.writeText(buildReceiptText(active)); showToast("Texto copiado ✓"); }
     catch (e) { showToast("Não foi possível copiar"); }
@@ -530,7 +544,12 @@ function Jambalaia() {
             <div className="text-[11px] tracking-[0.2em] font-semibold" style={{ color: INK_SOFT }}>CONTROLE DA CASA</div>
             <h1 className="italic text-[26px] leading-tight -mt-0.5" style={{ color: INK, fontFamily: "'Fraunces', serif" }}>Jambalaia</h1>
           </div>
-          <div className="text-[11px] font-mono mb-1" style={{ color: INK_SOFT }}>{active.year}</div>
+          <div className="flex flex-col items-end gap-1">
+            <div className="text-[11px] font-mono" style={{ color: INK_SOFT }}>{active.year}</div>
+            <button onClick={exportBackup} className="text-[10.5px] font-semibold underline" style={{ color: GOLD, background: "none", border: "none", cursor: "pointer" }}>
+              Exportar backup
+            </button>
+          </div>
         </div>
 
         <div ref={scrollerRef} className="flex gap-2 px-5 pb-4 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
@@ -657,6 +676,31 @@ function Jambalaia() {
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-[12.5px] px-4 py-2 rounded-full shadow-lg" style={{ background: INK, color: PAPER }}>
           {toast}
+        </div>
+      )}
+
+      {showBackup && (
+        <div className="fixed inset-0 flex items-center justify-center p-5 z-50" style={{ background: "rgba(43,33,24,0.55)" }}>
+          <div className="w-full max-w-md rounded-lg p-5" style={{ background: PAPER }}>
+            <h3 className="text-[16px] font-semibold mb-1" style={{ color: INK, fontFamily: "'Fraunces', serif" }}>Backup dos dados</h3>
+            <p className="text-[12px] mb-3" style={{ color: INK_SOFT }}>
+              Se não copiou automático, toque no texto abaixo, selecione tudo e copie. Depois cole no chat do Claude.
+            </p>
+            <textarea
+              readOnly
+              value={backupText}
+              onFocus={(e) => e.target.select()}
+              className="w-full h-40 text-[11px] font-mono p-2 rounded"
+              style={{ background: "#F1EBDA", border: `1px solid ${LINE}`, color: INK }}
+            />
+            <button
+              onClick={() => setShowBackup(false)}
+              className="mt-3 w-full font-semibold text-[13px] py-2.5 rounded-lg"
+              style={{ background: GOLD, color: PAPER, border: "none", cursor: "pointer" }}
+            >
+              Fechar
+            </button>
+          </div>
         </div>
       )}
     </div>
